@@ -140,6 +140,11 @@ static const interop_addr_entry_t interop_addr_database[] = {
 
   //Bose Mini II sound link
   {{{0x04, 0x52, 0xc7,      0,0,0}}, 3, INTEROP_DELAY_SCO_FOR_MT_CALL},
+
+  // Porsche, Audi Q7
+  {{{0xbc, 0x30, 0x7e,      0,0,0}}, 3, INTEROP_REMOTE_AVDTP_START},
+  // Audi
+  {{{0xa4, 0x08, 0xea,      0,0,0}}, 3, INTEROP_REMOTE_AVDTP_START},
 };
 
 typedef struct {
@@ -186,6 +191,10 @@ static const interop_name_entry_t interop_name_database[] = {
 
   //JABRA EASYGO
   {"JABRA EASYGO", 12, INTEROP_DISABLE_CODEC_NEGOTIATION},
+
+  // Honor remote's avdtp start request
+  {"Audi",    4, INTEROP_REMOTE_AVDTP_START},
+  {"Porsche", 7, INTEROP_REMOTE_AVDTP_START},
 };
 
 typedef struct {
