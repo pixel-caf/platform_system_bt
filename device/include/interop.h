@@ -128,11 +128,6 @@ typedef enum {
   // which may lead to remotes not rendering SCO audio.
   INTEROP_DELAY_SCO_FOR_MT_CALL,
 
-  // Honor remote avdtp start, certain carkits send avdt_start along with avrcp
-  // passthrough cmd. If DUT suspends remote start and initiate avdtp start, remote
-  // suspends DUT's start request. So honor remote start for certain devices.
-  INTEROP_REMOTE_AVDTP_START,
-
 } interop_feature_t;
 
 // Check if a given |addr| matches a known interoperability workaround as identified
