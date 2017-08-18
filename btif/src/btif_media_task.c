@@ -414,6 +414,7 @@ typedef struct
 //#endif
 
     btif_media_stats_t accumulated_stats;
+    BOOLEAN is_medium_bitrate_enabled;
 #endif
 } tBTIF_MEDIA_CB;
 
@@ -1251,10 +1252,11 @@ static UINT16 btif_media_task_get_sbc_rate(void)
     UINT16 rate = BTIF_A2DP_DEFAULT_BITRATE;
 
     /* restrict bitrate if a2dp link is non-edr */
-    if (!btif_av_is_peer_edr())
+    if ((!btif_av_is_peer_edr()) ||
+        (btif_media_cb.is_medium_bitrate_enabled))
     {
         rate = BTIF_A2DP_NON_EDR_MAX_RATE;
-        APPL_TRACE_DEBUG("non-edr a2dp sink detected, restrict rate to %d", rate);
+        APPL_TRACE_IMP("Restrict A2dp bitrate to %d", rate);
     }
 
     return rate;
@@ -1583,6 +1585,7 @@ void btif_a2dp_on_init(void)
     btif_media_cb.rx_audio_focus_state = BTIF_MEDIA_FOCUS_NOT_GRANTED;
     btif_media_cb.audio_track = NULL;
 #endif
+    btif_media_cb.is_medium_bitrate_enabled = FALSE;
 }
 
 
@@ -1696,6 +1699,7 @@ void btif_a2dp_on_idle(void)
         APPL_TRACE_DEBUG("Stopped BT track");
     }
 #endif
+    btif_media_cb.is_medium_bitrate_enabled = FALSE;
 }
 
 /*****************************************************************************
@@ -1778,6 +1782,7 @@ BOOLEAN btif_a2dp_on_started(tBTA_AV_START *p_av, BOOLEAN pending_start, tBTA_AV
     BOOLEAN ack = FALSE;
 
     APPL_TRACE_IMP("## ON A2DP STARTED ##");
+    btif_media_cb.is_medium_bitrate_enabled = FALSE;
 
     if (p_av == NULL)
     {
@@ -5292,4 +5297,78 @@ void btif_update_a2dp_metrics(void)
         }
     }
     metrics_log_a2dp_session(&metrics);
+}
+
+void btif_media_on_update_bitrate(bool isMediumBitrateEnabled)
+{
+    if (alarm_is_scheduled(btif_media_cb.media_alarm))
+    {
+        APPL_TRACE_IMP("bitrate Changed to medium ?: %d", isMediumBitrateEnabled);
+        APPL_TRACE_IMP("Existing bitrate type used ?: %d",
+                    btif_media_cb.is_medium_bitrate_enabled);
+        if (btif_media_cb.is_medium_bitrate_enabled != isMediumBitrateEnabled)
+        {
+            btif_media_cb.is_medium_bitrate_enabled = isMediumBitrateEnabled;
+            btif_a2dp_encoder_update();
+        }
+    }
+}
+
+void btif_media_dump_codec_info(tBTA_AV_HNDL hdl)
+{
+   UINT8 codectype;
+   tBTIF_MEDIA_INIT_AUDIO msg;
+   tA2D_APTX_CIE* codecInfo = 0;
+   codectype = bta_av_select_codec(hdl);
+   if (A2D_NON_A2DP_MEDIA_CT == codectype) {
+       UINT8* ptr = bta_av_co_get_current_codecInfo();
+       if (ptr) {
+           codecInfo = (tA2D_APTX_CIE*) &ptr[BTA_AV_CFG_START_IDX];
+           APPL_TRACE_DEBUG("%s codecId = %d", __func__, codecInfo->codecId);
+           APPL_TRACE_DEBUG("%s vendorId = %x", __func__, codecInfo->vendorId);
+           if (codecInfo && codecInfo->vendorId == A2D_APTX_VENDOR_ID
+               && codecInfo->codecId == A2D_APTX_CODEC_ID_BLUETOOTH)
+           {
+               APPL_TRACE_DEBUG("%s: selected codec is aptX", __FUNCTION__);
+               APPL_TRACE_DEBUG("%s: SamplingFreq: %d",__FUNCTION__, msg.SamplingFreq);
+               APPL_TRACE_DEBUG("%s: ChannelMode: %d",__FUNCTION__, msg.ChannelMode);
+               APPL_TRACE_DEBUG("%s: MtuSize: %d",__FUNCTION__, msg.MtuSize);
+               APPL_TRACE_DEBUG("%s: CodecType: %d",__FUNCTION__, msg.CodecType);
+               APPL_TRACE_DEBUG("%s: BluetoothVendorID: %d",__FUNCTION__, msg.BluetoothVendorID);
+               APPL_TRACE_DEBUG("%s: BluetoothCodecID: %d",__FUNCTION__, msg.BluetoothCodecID);
+           }
+           if (codecInfo && codecInfo->vendorId == A2D_APTX_HD_VENDOR_ID
+               && codecInfo->codecId == A2D_APTX_HD_CODEC_ID_BLUETOOTH)
+           {
+               APPL_TRACE_DEBUG("%s: selected codec is aptXHD", __FUNCTION__);
+               APPL_TRACE_DEBUG("%s: SamplingFreq: %d",__FUNCTION__, msg.SamplingFreq);
+               APPL_TRACE_DEBUG("%s: ChannelMode: %d",__FUNCTION__, msg.ChannelMode);
+               APPL_TRACE_DEBUG("%s: MtuSize: %d",__FUNCTION__, msg.MtuSize);
+               APPL_TRACE_DEBUG("%s: CodecType: %d",__FUNCTION__, msg.CodecType);
+               APPL_TRACE_DEBUG("%s: BluetoothVendorID: %d",__FUNCTION__, msg.BluetoothVendorID);
+               APPL_TRACE_DEBUG("%s: BluetoothCodecID: %d",__FUNCTION__, msg.BluetoothCodecID);
+
+           }
+       }
+   }
+   if (BTIF_AV_CODEC_M24 == codectype) {
+       APPL_TRACE_DEBUG("%s: selected codec is AAC", __FUNCTION__);
+       APPL_TRACE_DEBUG("%s: SamplingFreq: %d",__FUNCTION__, msg.SamplingFreq);
+       APPL_TRACE_DEBUG("%s: ChannelMode: %d",__FUNCTION__, msg.ChannelMode);
+       APPL_TRACE_DEBUG("%s: MtuSize: %d",__FUNCTION__, msg.MtuSize);
+       APPL_TRACE_DEBUG("%s: CodecType: %d",__FUNCTION__, msg.CodecType);
+       APPL_TRACE_DEBUG("%s: ObjectType: %d",__FUNCTION__, msg.ObjectType);
+       APPL_TRACE_DEBUG("%s: bit_rate: %d",__FUNCTION__, msg.bit_rate);
+   }
+   if (BTIF_AV_CODEC_SBC == codectype)
+   {
+       APPL_TRACE_DEBUG("%s: selected codec is SBC", __FUNCTION__);
+       APPL_TRACE_DEBUG("%s: SamplingFreq: %d",__FUNCTION__, msg.SamplingFreq);
+       APPL_TRACE_DEBUG("%s: ChannelMode: %d",__FUNCTION__, msg.ChannelMode);
+       APPL_TRACE_DEBUG("%s: NumOfSubBands: %d",__FUNCTION__, msg.NumOfSubBands);
+       APPL_TRACE_DEBUG("%s: NumOfBlocks: %d",__FUNCTION__, msg.NumOfBlocks);
+       APPL_TRACE_DEBUG("%s: AllocationMethod: %d",__FUNCTION__, msg.AllocationMethod);
+       APPL_TRACE_DEBUG("%s: MtuSize: %d",__FUNCTION__, msg.MtuSize);
+       APPL_TRACE_DEBUG("%s: CodecType: %d",__FUNCTION__, msg.CodecType);
+   }
 }
